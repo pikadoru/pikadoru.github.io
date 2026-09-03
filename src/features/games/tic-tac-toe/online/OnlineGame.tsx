@@ -8,6 +8,7 @@ import type { OnlineSnapshot } from '../../../../services/realtime/socket'
 type OnlineGameProps = { onBack: () => void }
 type Stage = 'ready' | 'queue' | 'matched' | 'playing' | 'finished' | 'error'
 const apiOrigin = import.meta.env.VITE_ONLINE_API_ORIGIN as string | undefined
+const tunnelHeaders = { 'ngrok-skip-browser-warning': 'true' }
 
 export function OnlineGame({ onBack }: OnlineGameProps) {
   const [stage, setStage] = useState<Stage>('ready')
@@ -26,7 +27,7 @@ export function OnlineGame({ onBack }: OnlineGameProps) {
 
   useEffect(() => () => {
     const activeToken = tokenRef.current
-    if (activeToken && apiOrigin) void fetch(`${apiOrigin}/v1/queue/leave`, { method: 'POST', headers: { Authorization: `Bearer ${activeToken}` }, keepalive: true })
+    if (activeToken && apiOrigin) void fetch(`${apiOrigin}/v1/queue/leave`, { method: 'POST', headers: { ...tunnelHeaders, Authorization: `Bearer ${activeToken}` }, keepalive: true })
     socketRef.current?.disconnect()
   }, [])
 
@@ -37,7 +38,7 @@ export function OnlineGame({ onBack }: OnlineGameProps) {
     setSnapshot(null)
     setStage('queue'); setMessage('Finding a random player…')
     try {
-      const sessionResponse = await fetch(`${apiOrigin}/v1/sessions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+      const sessionResponse = await fetch(`${apiOrigin}/v1/sessions`, { method: 'POST', headers: { ...tunnelHeaders, 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
       if (!sessionResponse.ok) throw new Error('Could not create a player session')
       const session = await sessionResponse.json() as { token: string }
       setToken(session.token)
@@ -46,7 +47,7 @@ export function OnlineGame({ onBack }: OnlineGameProps) {
         nextSocket.once('connect', resolve)
         nextSocket.once('connect_error', () => reject(new Error('Could not connect to the online server')))
       })
-      const queueResponse = await fetch(`${apiOrigin}/v1/queue/join`, { method: 'POST', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ gameType: 'tic-tac-toe' }) })
+      const queueResponse = await fetch(`${apiOrigin}/v1/queue/join`, { method: 'POST', headers: { ...tunnelHeaders, Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ gameType: 'tic-tac-toe' }) })
       if (!queueResponse.ok) { nextSocket.disconnect(); throw new Error('Could not join matchmaking') }
       nextSocket.on('room:matched', ({ roomId }: { roomId: string }) => { setStage('matched'); setMessage('Opponent found. Starting the game…'); nextSocket.emit('room:join', roomId) })
       nextSocket.on('queue:position', (info: { position: number | null; total: number }) => setQueueInfo(info))
@@ -65,7 +66,7 @@ export function OnlineGame({ onBack }: OnlineGameProps) {
   }
 
   async function leaveQueue() {
-    if (token && apiOrigin) await fetch(`${apiOrigin}/v1/queue/leave`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
+    if (token && apiOrigin) await fetch(`${apiOrigin}/v1/queue/leave`, { method: 'POST', headers: { ...tunnelHeaders, Authorization: `Bearer ${token}` } })
     socket?.disconnect(); setSocket(null); setSnapshot(null); setQueueInfo(null); setStage('ready'); setMessage('')
   }
 
@@ -76,7 +77,7 @@ export function OnlineGame({ onBack }: OnlineGameProps) {
 
   const winner = snapshot ? getWinner(snapshot.board as Board) : null
   const draw = snapshot ? isDraw(snapshot.board as Board) : false
-  if (stage === 'ready' || stage === 'error') return <section className="game-panel online-placeholder" aria-live="polite"><p className="eyebrow">Online / Random player</p><h2>{stage === 'error' ? 'Connection unavailable.' : 'Find someone to play.'}</h2><p className="lede">{stage === 'error' ? message : 'Join the matchmaking queue and we will pair you with a random opponent.'}</p><div className="online-actions"><button className="primary-button" type="button" onClick={() => void startQueue}>Find a player</button><button className="text-button" type="button" onClick={onBack}>← Select another mode</button></div></section>
+  if (stage === 'ready' || stage === 'error') return <section className="game-panel online-placeholder" aria-live="polite"><p className="eyebrow">Online / Random player</p><h2>{stage === 'error' ? 'Connection unavailable.' : 'Find someone to play.'}</h2><p className="lede">{stage === 'error' ? message : 'Join the matchmaking queue and we will pair you with a random opponent.'}</p><div className="online-actions"><button className="primary-button" type="button" onClick={() => void startQueue()}>Find a player</button><button className="text-button" type="button" onClick={onBack}>← Select another mode</button></div></section>
   if (stage === 'queue' || stage === 'matched') return <section className="game-panel online-placeholder" aria-live="polite"><p className="eyebrow">Online / Step 02</p><h2>{message}</h2><p className="lede">{stage === 'queue' ? `Players are matched in a randomized 10-second window. ${queueInfo?.position ? `You are #${queueInfo.position} of ${queueInfo.total}.` : ''}` : 'Your room is being prepared.'}</p><button className="text-button" type="button" onClick={() => void leaveQueue()}>Leave queue</button></section>
   return <div className="game-layout"><section className="game-panel" aria-label="Online tic-tac-toe game"><div className="game-stage-label"><span>Online / Play</span><span>You are {snapshot?.yourPlayer ?? '—'} · {snapshot?.version ?? 0} moves</span></div><p className="game-status" aria-live="polite">{winner ? `${winner} wins!` : draw ? 'A draw.' : snapshot?.turn === snapshot?.yourPlayer ? 'Your turn' : 'Opponent’s turn'}</p><GameBoard board={snapshot?.board ?? Array(9).fill(null)} onMove={sendMove} disabled={!snapshot || snapshot.outcome !== 'active' || snapshot.turn !== snapshot.yourPlayer} />{(winner || draw) && <div className="result-backdrop"><section className="result-dialog" role="dialog" aria-modal="true" aria-labelledby="online-result-heading"><p className="eyebrow">Step 03 / Next move</p><h2 id="online-result-heading">{winner ? `${winner} wins!` : 'A draw.'}</h2><p className="dialog-copy">Play another random match or leave online play.</p><div className="game-actions"><button type="button" onClick={() => void queueAgain()}>Queue and play again</button><button type="button" onClick={async () => { await leaveQueue(); onBack() }}>Select mode</button><Link to="/games/minigames">Back to minigames</Link><Link to="/">Back to home</Link></div></section></div>}</section><aside className="game-aside"><span className="aside-number">01</span><p>The server owns the board, turn, and result. Your browser only sends a move intent.</p></aside></div>
 }
