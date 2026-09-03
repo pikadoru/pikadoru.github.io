@@ -4,6 +4,7 @@ import { GameBoard } from '../../../features/games/tic-tac-toe/components/GameBo
 import { chooseComputerMove } from '../../../features/games/tic-tac-toe/game/computerPlayer'
 import { getWinner, isDraw, type Board, type Player } from '../../../features/games/tic-tac-toe/game/rules'
 import { Link } from 'react-router-dom'
+import { OnlineGame } from '../../../features/games/tic-tac-toe/online/OnlineGame'
 
 type Mode = 'local' | 'computer' | 'online'
 const emptyBoard = (): Board => Array<Cell>(9).fill(null)
@@ -50,7 +51,7 @@ export function TicTacToePage() {
     </div>
   </section>
 
-  const onlinePlaceholder = <section className="game-panel online-placeholder" aria-live="polite"><p className="eyebrow">Online mode</p><h2>Online play is still warming up.</h2><p className="lede">The local game is ready now. Online matches will arrive when the multiplayer service is connected.</p><button className="text-button" type="button" onClick={selectModeScreen}>← Select another mode</button></section>
+  const onlinePlaceholder = <OnlineGame onBack={selectModeScreen} />
 
   useEffect(() => {
     if (winner || draw) setShowResult(true)

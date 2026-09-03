@@ -24,7 +24,9 @@ The site uses a feature-oriented structure. Route pages stay thin, while reusabl
 2. Play the game.
 3. After a win or draw, play again, select another mode, return to minigames, or return home.
 
-Online mode is currently presented as a coming-soon state; it will need a multiplayer service before it can start a match.
+Online mode connects to the private backend configured with `VITE_ONLINE_API_ORIGIN`. Copy `.env.example` to `.env`, set the HTTPS ngrok origin, and rebuild the static site. The backend is maintained outside this public repository.
+
+For GitHub Actions deployments, add a repository variable named `VITE_ONLINE_API_ORIGIN` under **Settings → Secrets and variables → Actions → Variables**. Set it to the HTTPS ngrok origin. This is public frontend configuration, not a secret; never add database credentials or admin tokens there.
 
 ## Build
 
